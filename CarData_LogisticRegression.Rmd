@@ -1,0 +1,88 @@
+---
+title: "Car Data - Logistic Regression"
+author: "Francia Moscoso"
+date: "April 14, 2016"
+output: html_document
+---
+
+```{r LoadLib, message=F, warning=F}
+library(dplyr)    
+library(lattice)
+```
+
+**Logistic regression is a "categorical" tool in that it is used to predict categories (fraud/not-fraud, good/bad .) instead of numeric scores (like standard regression).**
+ 
+**The data is taken from a consumer review of cars:<br> (http://archive.ics.uci.edu/ml/machine-learning-databases/car/car.data) 
+Each car is summarized by 6 attributes (price, maintenance costs, doors, storage size, seating and safety ); there is also a conclusion column that contains the final overall recommendation (unacceptable, acceptable, good, very good)** 
+
+```{r, loadData, comment="", echo=TRUE}
+#Working Directory
+setwd("~/SprintboardProject/CarData_LogisticRegression") 
+
+#Load Data
+train <- read.csv("CarData.csv",
+           col.names=c('buying','maintenance','doors','persons','lug_boot','safety','rating'))
+str(train)
+```
+<br>
+<br>
+**Creating Logistic Model**
+```{r comment="", echo=TRUE}
+logisticModel <- glm(rating!='unacc' ~ buying + maintenance + doors + persons + lug_boot + safety, family=binomial(link = "logit"),data=train)
+
+#"safetylow" is given a -30.5045 scoring. The complete prediction procedure for a new car is to look the levels specified for all 6 variables and add up the correct scores plus the Intercept score of -28.4255.
+summary(logisticModel)
+
+#This summed-up score is called the "link" and is essentially the model prediction. 
+#Positive link values are associated with acceptable cars and negative link values are associated with unacceptable cars.
+modelPred <- predict(logisticModel,type='link')
+write.csv(modelPred, "modelPred.csv", row.names = T)
+
+#For example the first car in our data set is:
+#  buying maintenance doors persons lug_boot safety rating
+#   vhigh       vhigh     2       2    small    low  unacc
+# Which is: -2.0662 -2.8254 -4.4476 -3.0044 -28.4289 = -40.77
+modelPred[1]
+
+summary(modelPred)
+
+#Predit values for all the 1727 records.
+predictRating = predict(logisticModel, type = "response")
+ 
+#All entries are between 0 and 1
+write.csv(predictRating, "predictRating.csv", row.names = T)
+
+#Checking some entries
+predictRating[1673]
+predictRating[947]
+predictRating[1648]
+
+#Predictions values: max value of 1 and min value of 0
+summary(predictRating)
+
+
+#The columns FALSE and TRUE denote the model predicted the car was unacceptable or at least acceptable. 
+#From the row "unacc" we see that 1166 of the 1166+44 unacceptable cars were correctly  predicted FALSE (or not at least acceptable). Also notice the only face negatives are the 32 FALSEs in the "acc" row- none of the good or very good cars were predicted to be unacceptable. We can examine the error rates of our model with the      single line: 
+table(train$rating, predictRating >= 0.5)
+
+#Average probability that the model will predict the car was acceptable for each Rating
+tapply(predictRating,train$rating,mean)
+
+
+#Number of cars per Rating
+train  %>% group_by(rating) %>% summarise(TotCount=n())
+
+densityplot( ~modelPred,
+data=train,
+main="Logistic Model Density Plot",
+xlab="predict(logisticModel,type='link')")
+
+
+densityplot(modelPred,groups=train$rating!='unacc',auto.key=T)
+#This is an area density chart. Each car that was defined as being unacceptable adds a single blue circle to   the bottom of the chart. Each car that was defined as being acceptable adds a single magenta circle to the     bottom of the chart.
+#The height of the curve indicates what fraction of the circles of the same color are under that region of the curve. So we can see most of the blue circles are in 3 clusters centered at -55, -30 and -5 while the magenta  circles are largely clustered around +5.
+```
+<br>
+**Reference: http://www.r-bloggers.com/learn-logistic-regression-and-beyond/
+<br>
+<br>
